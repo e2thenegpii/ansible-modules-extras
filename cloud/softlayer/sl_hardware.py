@@ -1,5 +1,5 @@
 #!/usr/bin/python
-'''Implements an ansible module to create SoftLayer virtual machines'''
+'''Implements an ansible module to make a bare metal server for SoftLayer'''
 # This file is part of Ansible
 #
 # Ansible is free software: you can redistribute it and/or modify
@@ -20,35 +20,30 @@ from ansible.module_utils.basic import AnsibleModule, json
 
 DOCUMENTATION = '''
 ---
-module: sl_vm
-short_description: create or cancel a virtual instance in SoftLayer
+module: sl_hardware
+short_description: create or cancel a bare metal instance in SoftLayer
 description:
   - Creates or cancels SoftLayer instances. When created, optionally waits for it to be 'running'.
-version_added: "2.1"
+version_added: "2.2"
 options:
   instance_id:
     description:
-      - Instance Id of the virtual instance to perform action option
+      - Instance Id of the instance on which to perform an action
     required: false
     default: null
   hostname:
     description:
-      - Hostname to be provided to a virtual instance
+      - Hostname to be used in the instance
     required: false
     default: null
   domain:
     description:
-      - Domain name to be provided to a virtual instance
+      - Domain name to be provided to the instance
     required: false
     default: null
   datacenter:
     description:
-      - Datacenter for the virtual instance to be deployed
-    required: false
-    default: null
-  tags:
-    description:
-      - Tag or list of tags to be provided to a virtual instance
+      - Datacenter where to deploy the instance
     required: false
     default: null
   hourly:
@@ -61,69 +56,29 @@ options:
       - Flag to determine if the instance should be private only
     required: false
     default: false
-  dedicated:
-    description:
-      - Falg to determine if the instance should be deployed in dedicated space
-    required: false
-    default: false
-  local_disk:
-    description:
-      - Flag to determine if local disk should be used for the new instance
-    required: false
-    default: true
-  cpus:
-    description:
-      - Count of cpus to be assigned to new virtual instance
-    required: true
-    default: null
-  memory:
-    description:
-      - Amount of memory to be assigned to new virtual instance
-    required: true
-    default: null
-  disks:
-    description:
-      - List of disk sizes to be assigned to new virtual instance
-    required: true
-    default: [25]
   os_code:
     description:
-      - OS Code to be used for new virtual instance
-    required: false
-    default: null
-  image_id:
-    description:
-      - Image Template to be used for new virtual instance
+      - The OS Code for the new instance
     required: false
     default: null
   nic_speed:
     description:
-      - NIC Speed to be assigned to new virtual instance
+      - NIC Speed to assign to new the instance
     required: false
     default: 10
-  public_vlan:
-    description:
-      - VLAN by its Id to be assigned to the public NIC
-    required: false
-    default: null
-  private_vlan:
-    description:
-      - VLAN by its Id to be assigned to the private NIC
-    required: false
-    default: null
   ssh_keys:
     description:
-      - List of ssh keys by their Id to be assigned to a virtual instance
+      - List of ssh keys by their Id to assign to the instance
     required: false
     default: null
   post_uri:
     description:
-      - URL of a post provisioning script to be loaded and exectued on virtual instance
+      - URL of a post provisioning script to load and execute on the instance
     required: false
     default: null
   state:
     description:
-      - Create, or cancel a virtual instance. Specify "present" for create, "absent" to cancel.
+      - Create, or cancel a the instance. Specify "present" for create, "absent" to cancel.
     required: false
     default: 'present'
   wait:
@@ -148,74 +103,14 @@ options:
 requirements:
     - "python >= 2.6"
     - "softlayer >= 4.1.1"
-author: 
-  - "Matt Colton (@mcltn)"
-  - "Eldon Allred"
+author: "Eldon Allred"
 '''
 
 EXAMPLES = '''
-- name: Build instance
-  hosts: localhost
-  gather_facts: False
-  tasks:
-  - name: Build instance request
-    local_action:
-      module: sl_vm
-      hostname: instance-1
-      domain: anydomain.com
-      datacenter: dal09
-      tags: ansible-module-test
-      hourly: True
-      private: False
-      dedicated: False
-      local_disk: True
-      cpus: 1
-      memory: 1024
-      disks: [25]
-      os_code: UBUNTU_LATEST
-      wait: False
-
-- name: Build additional instances
-  hosts: localhost
-  gather_facts: False
-  tasks:
-  - name: Build instances request
-    local_action:
-      module: sl_vm
-      hostname: "{{ item.hostname }}"
-      domain: "{{ item.domain }}"
-      datacenter: "{{ item.datacenter }}"
-      tags: "{{ item.tags }}"
-      hourly: "{{ item.hourly }}"
-      private: "{{ item.private }}"
-      dedicated: "{{ item.dedicated }}"
-      local_disk: "{{ item.local_disk }}"
-      cpus: "{{ item.cpus }}"
-      memory: "{{ item.memory }}"
-      disks: "{{ item.disks }}"
-      os_code: "{{ item.os_code }}"
-      ssh_keys: "{{ item.ssh_keys }}"
-      wait: "{{ item.wait }}"
-    with_items:
-      - { hostname: 'instance-2', domain: 'anydomain.com', datacenter: 'dal09', tags: ['ansible-module-test', 'ansible-module-test-slaves'], hourly: True, private: False, dedicated: False, local_disk: True, cpus: 1, memory: 1024, disks: [25,100], os_code: 'UBUNTU_LATEST', ssh_keys: [], wait: True }
-      - { hostname: 'instance-3', domain: 'anydomain.com', datacenter: 'dal09', tags: ['ansible-module-test', 'ansible-module-test-slaves'], hourly: True, private: False, dedicated: False, local_disk: True, cpus: 1, memory: 1024, disks: [25,100], os_code: 'UBUNTU_LATEST', ssh_keys: [], wait: True }
-
-
-- name: Cancel instances
-  hosts: localhost
-  gather_facts: False
-  tasks:
-  - name: Cancel by tag
-    local_action:
-      module: sl_vm
-      state: absent
-      tags: ansible-module-test
 '''
 
 # TODO: Disabled RETURN as it is breaking the build for docs. Needs to be fixed.
 RETURN = '''# '''
-
-#TODO: get this info from API
 STATES = ['present', 'absent']
 DATACENTERS = ['ams01', 'ams03', 'dal01', 'dal05', 'dal06', 'dal09', 'fra02',
                'hkg02', 'hou02', 'lon02', 'mel01', 'mex01', 'mil01', 'mon01',
@@ -231,18 +126,18 @@ NIC_SPEEDS = [10, 100, 1000]
 
 try:
     import SoftLayer
-    from SoftLayer import VSManager
+    from SoftLayer import HardwareManager
 
     HAS_SL = True
 
-    class VirtualServerManager(VSManager):
+    class BareMetalManager(HardwareManager):
         '''Wraps calls to the SoftLayer API'''
         def __init__(self, username=None, api_key=None):
-            super(VirtualServerManager, self).__init__(
+            super(BareMetalManager, self).__init__(
                 SoftLayer.create_client_from_env(
                     username=username, api_key=api_key))
 
-        def create_virtual_instance(self, module):
+        def create_baremetal_instance(self, module):
             '''Provisions an instance with SoftLayer'''
             instances = self.list_instances(
                 hostname=module.params.get('hostname'),
@@ -271,7 +166,7 @@ try:
             if isinstance(tags, list):
                 tags = ','.join(map(str, module.params.get('tags')))
 
-            instance = self.create_instance(
+            instance = self.place_order(
                 hostname=module.params.get('hostname'),
                 domain=module.params.get('domain'),
                 cpus=module.params.get('cpus'),
@@ -312,7 +207,7 @@ try:
             return completed, instance
 
         def cancel_instance(self, module):
-            '''Removes virtual machine instance from the account'''
+            '''Removes machine instance from the account'''
             canceled = True
             if module.params.get('instance_id') is None and \
                     (module.params.get('tags') or \
@@ -381,17 +276,19 @@ def main():
         module.fail_json(msg=
                          'softlayer python library required for this module')
 
+    state = module.params.get('state')
     username = module.params.get('username')
     api_key = module.params.get('api_key')
+    wait = module.params.get('wait')
 
-    manager = VirtualServerManager(username, api_key)
+    manager = BareMetalManager(username, api_key)
 
-    if module.params.get('state') == 'absent':
+    if state == 'absent':
         (changed, instance) = manager.cancel_instance(module)
 
-    elif module.params.get('state') == 'present':
-        (changed, instance) = manager.create_virtual_instance(module)
-        if module.params.get('wait') is True and instance:
+    elif state == 'present':
+        (changed, instance) = manager.create_baremetal_instance(module)
+        if wait is True and instance:
             (changed, instance) = manager.wait_for_instance(module, instance['id'])
 
     module.exit_json(
